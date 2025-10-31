@@ -6,6 +6,8 @@ SRCS_ASM += $(wildcard ./startup/*.S)
 SRCS_C += $(wildcard ./lib/*.c)
 #kernel
 SRCS_C += $(wildcard ./kernel/*.c)
+#apps
+SRCS_C += $(wildcard ./apps/*.c)
 #asm
 SRCS_ASM += $(wildcard ./asm/*.S)
 

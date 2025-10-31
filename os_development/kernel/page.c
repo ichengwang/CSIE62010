@@ -105,7 +105,7 @@ void page_init()
  * Allocate a memory block which is composed of contiguous physical pages
  * - npages: the number of PAGE_SIZE pages to allocate
  */
-static void *page_alloc(int npages)
+void *page_alloc(int npages)
 {
 	/* Note we are searching the page descriptor bitmaps. */
 	int found = 0;
@@ -150,7 +150,7 @@ static void *page_alloc(int npages)
  * Free the memory block
  * - p: start address of the memory block
  */
-static void page_free(void *p)
+void page_free(void *p)
 {
 	/*
 	 * Assert (TBD) if p is invalid
