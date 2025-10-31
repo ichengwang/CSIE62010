@@ -1,24 +1,17 @@
-CROSS_COMPILE = riscv64-unknown-elf-
-CFLAGS = -nostdlib -fno-builtin -march=rv32imazicsr -mabi=ilp32 -g -Wall
+include ../common.mk
 
-QEMU = qemu-system-riscv32
-QFLAGS = -nographic -smp 1 -machine virt -bios none
-
-GDB = gdb-multiarch
-CC = ${CROSS_COMPILE}gcc
-OBJCOPY = ${CROSS_COMPILE}objcopy
-OBJDUMP = ${CROSS_COMPILE}objdump
+#startup
+SRCS_ASM += $(wildcard ./startup/*.S)
+#lib
+SRCS_C += $(wildcard ./lib/*.c)
+#kernel
+SRCS_C += $(wildcard ./kernel/*.c)
 
 
-SRCS_ASM = \
-	start.S \
+INC += -I./include
 
-SRCS_C = \
-	kernel.c \
-
-OBJS = $(SRCS_ASM:.S=.o)
-OBJS += $(SRCS_C:.c=.o)
-
+OBJS = $(patsubst %.S, objs/%.o, $(notdir ${SRCS_ASM}))
+OBJS += $(patsubst %.c, objs/%.o, $(notdir ${SRCS_C}))
 
 .DEFAULT_GOAL := all
 all: os.elf
@@ -28,13 +21,11 @@ os.elf: ${OBJS}
 	${CC} ${CFLAGS} -Ttext=0x80000000 -o os.elf $^
 	${OBJCOPY} -O binary os.elf os.bin
 
-%.o : %.c
-	${CC} ${CFLAGS} -c -o $@ $<
-
-%.o : %.S
-	${CC} ${CFLAGS} -c -o $@ $<
+objs/%.o : ${SRCS_ASM} ${SRCS_C}
+	${CC} ${CFLAGS} ${INC} -c $(filter %/$(*F).c,$^) $(filter %/$(*F).S,$^) -o $@
 
 run: all
+	@${QEMU} -M ? | grep virt >/dev/null || exit
 	@echo "Press Ctrl-A and then X to exit QEMU"
 	@echo "------------------------------------"
 	@${QEMU} ${QFLAGS} -kernel os.elf
@@ -46,10 +37,16 @@ debug: all
 	@${QEMU} ${QFLAGS} -kernel os.elf -s -S &
 	@${GDB} os.elf -q -x ../gdbinit
 
+debug_vscode: all
+	@echo "Press Ctrl-C and then input 'quit' to exit GDB and QEMU"
+	@echo "-------------------------------------------------------"
+	@${QEMU} ${QFLAGS} -kernel os.elf -s -S &
+
+
 .PHONY : code
 code: all
 	@${OBJDUMP} -S os.elf | less
 
 .PHONY : clean
 clean:
-	rm -rf *.o *.bin *.elf
+	rm -rf ./objs/*.o *.bin *.elf
