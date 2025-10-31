@@ -6,6 +6,8 @@ SRCS_ASM += $(wildcard ./startup/*.S)
 SRCS_C += $(wildcard ./lib/*.c)
 #kernel
 SRCS_C += $(wildcard ./kernel/*.c)
+#asm
+SRCS_ASM += $(wildcard ./asm/*.S)
 
 
 INC += -I./include
@@ -18,7 +20,7 @@ all: os.elf
 
 # start.o must be the first in dependency!
 os.elf: ${OBJS}
-	${CC} ${CFLAGS} -Ttext=0x80000000 -o os.elf $^
+	${CC} ${CFLAGS} -T os.ld -o os.elf $^
 	${OBJCOPY} -O binary os.elf os.bin
 
 objs/%.o : ${SRCS_ASM} ${SRCS_C}

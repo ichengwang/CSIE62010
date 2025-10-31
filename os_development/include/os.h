@@ -20,4 +20,9 @@ void panic(char *s);
 /* scanf */
 int  kscanf(const char* s, ...);
 
+/* memory management */
+void page_init();
+void *malloc(size_t size);
+void free(void *p);
+
 #endif /* __OS_H__ */
