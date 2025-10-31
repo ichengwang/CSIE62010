@@ -173,18 +173,112 @@ static void page_free(void *p)
 	}
 }
 
+typedef struct block_meta {
+    size_t size;
+    uint8_t is_free;
+    struct block_meta *next;
+} block_meta_t;
+
+static block_meta_t *head = NULL;
+
+/*
+ * Allocate a block of memory.
+ * This function implements a first-fit algorithm. It searches for the first
+ * free block in the list that is large enough to hold the requested size.
+ * If no suitable block is found, it requests more pages from the page allocator.
+ * If a block is larger than needed, it is split into two parts.
+ * - size: the number of bytes to allocate.
+ */
 void *malloc(size_t size)
 {
-  int res = size % PAGE_SIZE;
-  int npages = size/PAGE_SIZE;
+    if (size == 0) {
+        return NULL;
+    }
 
-  if (res>0) npages++;
-  return page_alloc(npages);
+    /* Align size to 4 bytes for word alignment */
+    size = (size + 3) & ~3;
+
+    block_meta_t *current = head;
+    block_meta_t *last = NULL;
+    while (current) {
+        if (current->is_free && current->size >= size) {
+            break;
+        }
+        last = current;
+        current = current->next;
+    }
+
+    if (current == NULL) {
+        size_t total_size = size + sizeof(block_meta_t);
+        int npages = (total_size + PAGE_SIZE - 1) / PAGE_SIZE;
+        
+        block_meta_t *new_chunk = (block_meta_t *)page_alloc(npages);
+        if (!new_chunk) {
+            return NULL;
+        }
+
+        new_chunk->size = (npages * PAGE_SIZE) - sizeof(block_meta_t);
+        new_chunk->is_free = 1;
+        new_chunk->next = NULL;
+
+        /* Append the new chunk to the list */
+        if (last) {
+            last->next = new_chunk;
+        } else {
+            head = new_chunk;
+        }
+        current = new_chunk;
+    }
+
+    /*
+     * Split the block if it's larger than needed.
+     */
+    if (current->size > size + sizeof(block_meta_t)) {
+        block_meta_t *split_block = (block_meta_t *)((char *)current + sizeof(block_meta_t) + size);
+        split_block->size = current->size - size - sizeof(block_meta_t);
+        split_block->is_free = 1;
+        split_block->next = current->next;
+        
+        current->size = size;
+        current->next = split_block;
+    }
+
+    current->is_free = 0;
+    return (void *)((char *)current + sizeof(block_meta_t));
 }
 
+/*
+ * Free a block of memory.
+ * This function marks the block as free and then attempts to coalesce
+ * (merge) it with adjacent free blocks to reduce fragmentation.
+ * - p: a pointer to the memory block to be freed.
+ */
 void free(void *p)
 {
-	page_free(p);
+    if (p == NULL) {
+        return;
+    }
+
+    block_meta_t *block_to_free = (block_meta_t *)((char *)p - sizeof(block_meta_t));
+    block_to_free->is_free = 1;
+
+    /* Coalesce adjacent free blocks */
+    block_meta_t *current = head;
+    while (current && current->next) {
+        if (current->is_free && current->next->is_free) {
+            /*
+             * Check if they are physically adjacent before merging
+             */
+            if ((char *)current + sizeof(block_meta_t) + current->size == (char *)current->next) {
+                current->size += sizeof(block_meta_t) + current->next->size;
+                current->next = current->next->next;
+            } else {
+                current = current->next;
+            }
+        } else {
+            current = current->next;
+        }
+    }
 }
 
 void page_test()
