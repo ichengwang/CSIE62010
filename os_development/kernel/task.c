@@ -1,18 +1,74 @@
 #include "os.h"
 
 /*!< Table use to save TCB pointer.              */
-taskCB_t    TCBTbl[256];
+taskCB_t    TCBTbl[MAX_USER_TASKS+SYS_TASK_NUM];
+
+/*!< The stack of IDLE task.                     */
+uint32_t   idle_stk[SYS_STACK_SIZE] = {0};
 
 taskCB_t *    TCBRunning         = NULL;        /*!< Pointer to TCB that current running task.  */
-taskCB_t      TCBRdy;        /*!< READY list.                 */
+taskCB_t *    FreeTCB            = NULL;         /*!< pointer to free TCB                        */
+taskCB_t      TCBRdy[PRIO_LEVEL];        /*!< READY list.                 */
+
+
+/**
+ *******************************************************************************
+ * @brief      Create a free TCB list.	  
+ *******************************************************************************
+ */
+void InitTCBList(void)
+{	
+    uint16_t  i;
+    taskCB_t * ptcb1;
+    taskCB_t * ptcb0;
+    
+    FreeTCB = &TCBTbl[0];	/* Build the free TCB list            */
+    FreeTCB->node.prev = NULL;
+    FreeTCB->node.next = NULL;
+
+    FreeTCB->state = TASK_INIT;
+    FreeTCB->taskID = 0;
+    ptcb1 = &TCBTbl[1];
+    for(i=1;i< MAX_USER_TASKS+SYS_TASK_NUM;i++ )
+    {
+        ptcb1->taskID    = i;
+        ptcb1->state     = TASK_INIT;
+        ptcb1->node.next = NULL;
+        ptcb1->node.prev = NULL;        
+        ptcb0 = ptcb1-1;
+        ptcb0->node.next = (list_t *)ptcb1;
+        ptcb1++;
+    }	
+}
 
 void readyQ_init() {
-    list_init((list_t *)&TCBRdy);
+    for (int i=0;i<PRIO_LEVEL;i++)
+        list_init((list_t *)&TCBRdy[i]);
+}
+
+static taskCB_t * _getFreeTCB(void)
+{
+    taskCB_t * ptcb;
+
+    spin_lock();
+    if(FreeTCB == NULL)                 /* Is there no free TCB               */
+    {
+        spin_unlock();                  /* Yes,unlock schedule                */
+        return NULL;                    /* Error return                       */
+    }	
+    ptcb    = FreeTCB;          /* Yes,assgin free TCB for this task  */    
+    /* Set next item as the head of free TCB list                     */
+    FreeTCB = (taskCB_t *)ptcb->node.next; 
+    ptcb->node.next = NULL;
+    ptcb->node.prev = NULL;
+    spin_unlock();
+    return ptcb;        
 }
 
 taskCB_t * getNewTCB(uint8_t index) {
     return &TCBTbl[index];
 }
+
 err_t task_init(taskCB_t *ptcb, const char *name,
                   void (*taskFunc)(void *parameter),
                   void       *parameter,
@@ -43,6 +99,20 @@ err_t task_init(taskCB_t *ptcb, const char *name,
     return OK;
 }	
 
+taskCB_t * task_create(const char *name,
+                  void (*taskFunc)(void *parameter),
+                  void       *parameter,
+                  uint32_t    stack_size,
+                  uint16_t    priority)
+{
+    taskCB_t *ptcb = _getFreeTCB();
+    if (ptcb == NULL) { return NULL; }
+    err_t ret = task_init(ptcb, name, taskFunc, parameter, stack_size, priority);
+    if (ret == OK)
+        return ptcb;
+    return NULL;
+}	
+
 void task_startup(taskCB_t * ptcb)
 {
 
@@ -60,24 +130,54 @@ err_t task_resume(taskCB_t *ptcb)
         return ERROR;
     }
 
+    //timer_stop(&ptcb->timer);
+    spin_lock(); 
     /* remove from suspend list */
     list_remove((list_t*)ptcb);
-    list_insert_before((list_t*)&TCBRdy, (list_t*)ptcb); 
+    list_insert_before((list_t*)&TCBRdy[ptcb->priority], (list_t*)ptcb); 
+    spin_unlock();
+
+    return OK;
+
+}
+
+err_t task_suspend(taskCB_t * ptcb)
+{
+    if (ptcb->state != TASK_READY)
+    {
+        return ERROR;
+    }
+
+    spin_lock();
+    /* change thread stat */
+    list_remove((list_t*)ptcb);
+    ptcb->state = TASK_SUSPEND;
+
+    spin_unlock();
     return OK;
 }
+
 
 err_t task_yield(void)
 {
     taskCB_t *ptcb;
 
+    spin_lock();
     /* set to current task */
     ptcb = TCBRunning;
-    if (ptcb->state == TASK_READY) {
+
+    /* if the task stat is READY and on ready queue list */
+    if (ptcb->state == TASK_READY)
+    {
         /* remove task from task list */
         list_remove((list_t*)ptcb);
         /* put task to end of ready queue */
-        list_insert_before((list_t*)&TCBRdy, (list_t*)ptcb);
+        list_insert_before((list_t*)&TCBRdy[ptcb->priority], (list_t*)ptcb);
+        spin_unlock();
+        schedule();
+        return OK;
     }
+    spin_unlock();
     schedule();
     return OK;
 }
