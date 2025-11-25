@@ -14,6 +14,7 @@ void start_kernel(void)
 
 	page_init();
 	trap_init();
+	timer_init();
 	sched_init();
 	InitTCBList();
 	readyQ_init();

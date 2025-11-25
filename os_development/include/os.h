@@ -59,7 +59,11 @@ void schedule();
 /* trap */
 void trap_init();
 reg_t trap_handler(reg_t epc, reg_t cause);
-void trap_test();
+
+/* timer */
+void timer_load(int interval);
+void timer_init();
+void timer_handler();
 
 /* user*/
 void loadTasks(void);
