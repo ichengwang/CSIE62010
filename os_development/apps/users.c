@@ -31,13 +31,24 @@ void user_task1(void *p)
 	}
 }
 
+void user_task2(void *p)
+{
+	uart_puts("Task 2: Created!\n");
+	while (1) {
+		uart_puts("Task 2: Running... \n");
+		myDelay(DELAY);
+        task_yield();
+        uart_puts("return Task 2 \n");
+	}
+}
+
 void loadTasks(void)
 {
-    taskCB_t *task0, *task1;
-    task0 = getNewTCB(0);
-    task1 = getNewTCB(1);
-    task_init(task0, "task0", user_task0, NULL, 1024, 10);
-    task_init(task1, "task1", user_task1, NULL, 1024, 10);
+    taskCB_t *task0, *task1, *task2;
+    task0 = task_create("task0", user_task0, NULL, 1024, 11);
+    task1 = task_create("task1", user_task1, NULL, 1024, 11);
+    task2 = task_create("task2", user_task2, NULL, 1024, 11);
     task_startup(task0);
     task_startup(task1);
+    task_startup(task2);
 }

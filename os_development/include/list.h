@@ -53,5 +53,9 @@ static inline void list_remove(list_t *n)
     n->next = n->prev = n;
 }
 
+static inline int list_isempty(list_t *l)
+{
+    return l->next == l;
+}
 
 #endif
