@@ -15,6 +15,7 @@ void user_task0(void *p)
 	while (1){
 		uart_puts("Task 0: Running... \n");
         myDelay(DELAY);
+		trap_test();
         task_yield();
 		uart_puts("return Task 0 \n");
 	}

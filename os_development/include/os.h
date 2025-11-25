@@ -56,6 +56,11 @@ err_t task_yield(void);
 void sched_init();
 void schedule();
 
+/* trap */
+void trap_init();
+reg_t trap_handler(reg_t epc, reg_t cause);
+void trap_test();
+
 /* user*/
 void loadTasks(void);
 
