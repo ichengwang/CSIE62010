@@ -10,7 +10,7 @@ static void myDelay(int Delay) {
 
 void user_task0(void *p)
 {
-	uart_puts("Task 0: Created!\n");
+	uart_puts("00:00:00");
 
 	while (1){
 		//uart_puts("Task 0: Running... \n");
