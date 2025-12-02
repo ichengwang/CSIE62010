@@ -83,22 +83,44 @@
 
 .text
 
+# void schedule(void);
+# Save current task context and switch to scheduler stack
+.globl schedule
+.align 4
+schedule:
+	# Save current task's context first
+	csrr	t6, mscratch		# t6 = pointer to current task's context
+	beqz	t6, 1f			# if NULL, skip saving
+	reg_save t6			# save all registers to current context
+
+	# Save the actual t6 (which was mscratch value)
+	mv	t5, t6
+	csrr	t6, mscratch
+	sw	t6, 120(t5)
+
+	# Save ra (return address) as the resume point
+	sw	ra, 0(t5)
+
+1:
+	# Switch to scheduler stack
+	la	sp, sched_stack_top
+	lw	sp, 0(sp)
+
+	# Call do_schedule on scheduler stack
+	call	do_schedule
+
+	# If do_schedule returns (no task switch), restore and return
+	csrr	t6, mscratch
+	beqz	t6, 2f
+	reg_restore t6
+2:
+	ret
+
 # void switch_to(struct context *next);
 # a0: pointer to the context of the next task
 .globl switch_to
 .align 4
 switch_to:
-	csrrw	t6, mscratch, t6	# swap t6 and mscratch
-	beqz	t6, 1f			# Notice: previous task may be NULL
-	reg_save t6			# save context of prev task
-
-	# Save the actual t6 register, which we swapped into
-	# mscratch
-	mv	t5, t6		# t5 points to the context of current task
-	csrr	t6, mscratch	# read t6 back from mscratch
-	sw	t6, 120(t5)	# save t6 with t5 as base
-
-1:
 	# switch mscratch to point to the context of the next task
 	csrw	mscratch, a0
 

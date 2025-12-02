@@ -2,15 +2,21 @@
 
 /* defined in entry.S */
 extern void switch_to(ctx_t *next);
+extern void schedule(void);
 extern taskCB_t TCBRdy[];
 extern taskCB_t * TCBRunning; 
+
+/* Dedicated scheduler stack */
+uint32_t sched_stack[8192];
+uint32_t *sched_stack_top = &sched_stack[8192];
 
 void sched_init()
 {
 	w_mscratch(0);
 }
 
-void schedule()
+/* Called on scheduler stack */
+void do_schedule(void)
 {
 	taskCB_t *nextTask;
 	ctx_t *next;
